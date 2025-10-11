@@ -1,7 +1,7 @@
 # ROS2 Observer
 Programmatic and human compatible observation of ROS.
 
-The ROS2 observer is a "toolbox" enabling/facilitating tracing and visualizaiton of ros2 
+The ROS2 observer is a "toolbox" enabling/facilitating tracing and visualization of ros2 
 programs/nodes.
 
 

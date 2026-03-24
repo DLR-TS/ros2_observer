@@ -1,5 +1,7 @@
 FROM openjdk:17.0.1-jdk-slim
 
+ARG TARGETARCH
+
 RUN apt-get update && apt-get install -y \
     mesa-utils \
     libgtk-3-0 \
@@ -13,14 +15,20 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /opt/lttng-scope
 
-RUN wget https://lttng.org/files/lttng-scope/lttng-scope-0.4.0-linux-x64-installer.run -O lttng-scope-installer.run
-
-RUN chmod +x lttng-scope-installer.run
-
-RUN ./lttng-scope-installer.run --mode unattended --unattendedmodeui none
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        wget https://lttng.org/files/lttng-scope/lttng-scope-0.4.0-linux-x64-installer.run \
+            -O lttng-scope-installer.run && \
+        chmod +x lttng-scope-installer.run && \
+        ./lttng-scope-installer.run --mode unattended --unattendedmodeui none && \
+        rm lttng-scope-installer.run; \
+    else \
+        echo "lttng-scope has no arm64 installer — skipping installation" && \
+        printf '#!/bin/sh\necho "lttng-scope is not available on arm64"\nexit 1\n' \
+            > /opt/lttng-scope/lttng-scope.run && \
+        chmod +x /opt/lttng-scope/lttng-scope.run; \
+    fi
 
 ENV JAVA_OPTS="-Dprism.verbose=true"
 
 WORKDIR /opt/lttng-scope/tracing_logs
 CMD ["/opt/lttng-scope/lttng-scope.run"]
-

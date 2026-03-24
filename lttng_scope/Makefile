@@ -34,6 +34,7 @@ help:
 build: ## Pull arch-tagged image for cache, then build LTTng Scope Docker image
 	docker pull "$(REGISTRY_IMAGE)" 2>/dev/null || true
 	docker build \
+	    --platform linux/$(ARCH) \
 	    --cache-from "$(REGISTRY_IMAGE)" \
 	    -t "$(IMAGE)" \
 	    -f Dockerfile \

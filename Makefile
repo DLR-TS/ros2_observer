@@ -18,7 +18,8 @@ build:
 	cd trace_compass && make build ARCH="$(ARCH)" REPO="$(REPO)"
 	cd lttng_scope   && make build ARCH="$(ARCH)" REPO="$(REPO)"
 	mkdir -p $(BUILD_DIR)
-	docker pull "$(REGISTRY_IMAGE)" 2>/dev/null || true
+	docker pull "$(REGISTRY_IMAGE)" 2>/dev/null && \
+	    docker tag "$(REGISTRY_IMAGE)" "$(DOCKER_IMAGE)" || \
 	docker build \
 	    --cache-from "$(REGISTRY_IMAGE)" \
 	    -t "$(DOCKER_IMAGE)" \

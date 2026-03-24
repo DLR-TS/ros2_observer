@@ -32,9 +32,11 @@ help:
 	@printf "Usage: make \033[36m<target>\033[0m\n%s\n" "$$(awk 'BEGIN {FS = \":.*##\"} /^[a-zA-Z0-9_-]+:.*?##/ { gsub(/\\$$/, "", $$2); printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST) | sort | uniq | sed 's/\$$//' | sed 's/\\$$//' )"
 
 .PHONY: build
-build: ## Pull arch-tagged image for cache, then build Trace Compass Docker image
-	docker pull "$(REGISTRY_IMAGE)" 2>/dev/null || true
+build: ## Pull arch-tagged image if available, build only if not found
+	docker pull "$(REGISTRY_IMAGE)" 2>/dev/null && \
+	    docker tag "$(REGISTRY_IMAGE)" "$(IMAGE)" || \
 	docker build \
+	    --platform linux/$(ARCH) \
 	    --cache-from "$(REGISTRY_IMAGE)" \
 	    -t "$(IMAGE)" \
 	    -f Dockerfile \

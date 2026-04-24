@@ -262,8 +262,15 @@ class ROS2Tools:
 
     @staticmethod
     def get_interface_text(message_type):
-        output = ROS2Tools.trim_comments(_run_with_retry(f"ros2 interface show {message_type}")[0])
-        return output
+        try:
+            r = subprocess.run(
+                ['ros2', 'interface', 'show', message_type],
+                capture_output=True, text=True, timeout=15
+            )
+            out = r.stdout.strip()
+        except Exception:
+            out = _run_with_retry(f'ros2 interface show {message_type}')[0]
+        return ROS2Tools.trim_comments(out)
 
     @staticmethod
     def get_topics():
@@ -289,19 +296,74 @@ class ROS2Tools:
         out = _run_with_retry(f"ros2 topic type {topic_name}")[0]
         return out.strip() or None
 
+    _PRIMITIVE_DEFAULTS = {
+        'bool': False,
+        'byte': 0, 'char': 0,
+        'float32': 0.0, 'float64': 0.0,
+        'int8': 0, 'uint8': 0,
+        'int16': 0, 'uint16': 0,
+        'int32': 0, 'uint32': 0,
+        'int64': 0, 'uint64': 0,
+        'string': '', 'wstring': '',
+    }
+
+    @staticmethod
+    def fields_to_proto(fields):
+        """Recursively convert a parse_interface_text field list to a zero-value dict."""
+        result = {}
+        for f in (fields or []):
+            if not f or not isinstance(f, dict):
+                continue
+            label = f.get('label')
+            if not label:
+                continue
+            ftype = f.get('type')
+            dtype = f.get('datatype', '')
+            if ftype == 'constant':
+                continue
+            elif ftype == 'primitive':
+                result[label] = ROS2Tools._PRIMITIVE_DEFAULTS.get(dtype, 0)
+            elif ftype == 'array':
+                result[label] = []
+            elif ftype == 'object':
+                result[label] = ROS2Tools.fields_to_proto(f.get('fields', []))
+            elif ftype == 'object_array':
+                sub = ROS2Tools.fields_to_proto(f.get('fields', []))
+                result[label] = [sub] if sub else []
+            else:
+                result[label] = None
+        return result
+
     @staticmethod
     def get_interface_proto(datatype):
         """
-        Return the prototype dict for a message type via ros2 interface proto.
-        Parses the YAML output into a Python dict.  Returns an empty dict on failure.
+        Return a zero-value prototype dict for a ROS message type.
+
+        Tries ros2 interface proto first (with a generous timeout), then falls
+        back to building the dict from ros2 interface show + parse_interface_text
+        so that custom workspace packages with slow daemon startup still work.
         """
-        out, err = _run_with_retry(f"ros2 interface proto {datatype}")
-        if not out:
-            raise RuntimeError(err.strip() or f"No output for ros2 interface proto {datatype}")
+        # Primary: ros2 interface proto (direct subprocess, longer timeout)
         try:
-            return yaml.safe_load(out) or {}
-        except yaml.YAMLError as e:
-            raise RuntimeError(f"YAML parse error for {datatype}: {e}")
+            result = subprocess.run(
+                ['ros2', 'interface', 'proto', datatype],
+                capture_output=True, text=True, timeout=15
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                parsed = yaml.safe_load(result.stdout)
+                if parsed and isinstance(parsed, dict):
+                    return parsed
+        except Exception:
+            pass
+
+        # Fallback: ros2 interface show -> parse_interface_text -> fields_to_proto
+        interface_text = ROS2Tools.get_interface_text(datatype)
+        if not interface_text:
+            raise RuntimeError(f"Could not retrieve interface for {datatype}")
+        fields = ROS2Tools.parse_interface_text(interface_text)
+        if not fields:
+            raise RuntimeError(f"Could not parse interface fields for {datatype}")
+        return ROS2Tools.fields_to_proto(fields)
 
     @staticmethod
     def topic_hz(topic_name, window=10, timeout=12):

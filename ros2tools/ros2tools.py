@@ -273,6 +273,21 @@ class ROS2Tools:
         return ROS2Tools.trim_comments(out)
 
     @staticmethod
+    def get_message_types():
+        """Return sorted list of all installed ROS message types via ros2 interface list --only-msgs."""
+        try:
+            r = subprocess.run(
+                ['ros2', 'interface', 'list', '--only-msgs'],
+                capture_output=True, text=True, timeout=15
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                return sorted(t.strip() for t in r.stdout.splitlines() if t.strip())
+        except Exception:
+            pass
+        out = _run_with_retry('ros2 interface list --only-msgs')[0]
+        return sorted(t.strip() for t in out.splitlines() if t.strip()) if out else []
+
+    @staticmethod
     def get_topics():
         """Return {topic: datatype} for all live topics via ros2 topic list -t."""
         out = _run_with_retry("ros2 topic list -t")[0]

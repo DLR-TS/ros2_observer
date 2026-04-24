@@ -29,6 +29,7 @@ class ROS2Cache:
     def __init__(self):
         self.nodes = {}
         self.topics = {}
+        self.topic_datatypes = {}
         self.datatypes = {}
         self.graph = None
         self.last_updated = {}
@@ -43,7 +44,12 @@ class ROS2Cache:
         with self.lock:
             self.topics = topics_data
             self.last_updated['topics'] = time.time()
-    
+
+    def update_topic_datatypes(self, datatypes_map):
+        with self.lock:
+            self.topic_datatypes = datatypes_map
+            self.last_updated['topic_datatypes'] = time.time()
+
     def update_datatypes(self, datatypes_data):
         with self.lock:
             self.datatypes = datatypes_data
@@ -88,6 +94,13 @@ class ROS2Worker:
     
     def _update_cache(self):
         try:
+            # Fast live topic list with datatypes — independent of node inspection
+            try:
+                topic_datatypes = ROS2Tools.get_topics()
+                self.cache.update_topic_datatypes(topic_datatypes)
+            except Exception as e:
+                logger.error(f"Error fetching topic list: {e}")
+
             node_names = ROS2Tools.get_nodes()
             if not node_names:
                 return
@@ -206,22 +219,64 @@ class ROS2API:
         @bp.route('/topics', methods=['GET'])
         def get_topics():
             topics = self.cache.get_data('topics')
+            topic_datatypes = self.cache.get_data('topic_datatypes')
             return jsonify({
                 'topics': topics,
+                'topic_datatypes': topic_datatypes,
                 'count': len(topics),
                 'last_updated': self.cache.last_updated.get('topics')
             })
-        
+
+        @bp.route('/topics/list', methods=['GET'])
+        def get_topics_live():
+            """Live ros2 topic list -t — no cache."""
+            try:
+                topic_datatypes = ROS2Tools.get_topics()
+                return jsonify({
+                    'topic_datatypes': topic_datatypes,
+                    'topics': sorted(topic_datatypes.keys()),
+                    'count': len(topic_datatypes)
+                })
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+
         @bp.route('/topics/<path:topic_name>', methods=['GET'])
         def get_topic(topic_name):
             if not topic_name.startswith('/'):
                 topic_name = f"/{topic_name}"
-            
             topics = self.cache.get_data('topics')
             if topic_name in topics:
                 return jsonify(topics[topic_name])
-            else:
-                return jsonify({'error': f'Topic {topic_name} not found'}), 404
+            return jsonify({'error': f'Topic {topic_name} not found'}), 404
+
+        @bp.route('/topics/<path:topic_name>/datatype', methods=['GET'])
+        def get_topic_datatype(topic_name):
+            if not topic_name.startswith('/'):
+                topic_name = f"/{topic_name}"
+            # Check cache first, fall back to live query
+            topic_datatypes = self.cache.get_data('topic_datatypes')
+            datatype = topic_datatypes.get(topic_name)
+            if datatype is None:
+                datatype = ROS2Tools.get_topic_datatype(topic_name)
+            return jsonify({'topic': topic_name, 'datatype': datatype})
+
+        @bp.route('/topics/<path:topic_name>/hz', methods=['POST'])
+        def get_topic_hz(topic_name):
+            if not topic_name.startswith('/'):
+                topic_name = f"/{topic_name}"
+            try:
+                output = ROS2Tools.topic_hz(topic_name)
+                return jsonify({'topic': topic_name, 'output': output})
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+
+        @bp.route('/interface/<path:datatype>/proto', methods=['GET'])
+        def get_interface_proto(datatype):
+            try:
+                proto = ROS2Tools.get_interface_proto(datatype)
+                return jsonify({'datatype': datatype, 'proto': proto})
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
         
         @bp.route('/datatypes', methods=['GET'])
         def get_datatypes():
@@ -257,6 +312,7 @@ class ROS2API:
                     'cache_stats': {
                         'nodes': len(self.cache.nodes),
                         'topics': len(self.cache.topics),
+                        'topic_datatypes': len(self.cache.topic_datatypes),
                         'datatypes': len(self.cache.datatypes)
                     }
                 })

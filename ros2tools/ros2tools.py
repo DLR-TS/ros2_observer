@@ -266,13 +266,79 @@ class ROS2Tools:
         return output
 
     @staticmethod
+    def get_topics():
+        """Return {topic: datatype} for all live topics via ros2 topic list -t."""
+        out = _run_with_retry("ros2 topic list -t")[0]
+        if not out:
+            return {}
+        result = {}
+        for line in out.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if ' [' in line:
+                topic, rest = line.split(' [', 1)
+                result[topic.strip()] = rest.rstrip(']').strip()
+            else:
+                result[line] = None
+        return result
+
+    @staticmethod
+    def get_topic_datatype(topic_name):
+        """Return the datatype string for a single topic, or None."""
+        out = _run_with_retry(f"ros2 topic type {topic_name}")[0]
+        return out.strip() or None
+
+    @staticmethod
+    def get_interface_proto(datatype):
+        """
+        Return the prototype dict for a message type via ros2 interface proto.
+        Parses the YAML output into a Python dict.  Returns an empty dict on failure.
+        """
+        out, err = _run_with_retry(f"ros2 interface proto {datatype}")
+        if not out:
+            raise RuntimeError(err.strip() or f"No output for ros2 interface proto {datatype}")
+        try:
+            return yaml.safe_load(out) or {}
+        except yaml.YAMLError as e:
+            raise RuntimeError(f"YAML parse error for {datatype}: {e}")
+
+    @staticmethod
+    def topic_hz(topic_name, window=10, timeout=12):
+        """
+        Run ros2 topic hz -w <window> and collect up to 6 output lines within
+        <timeout> seconds.  Returns the captured output as a string.
+        """
+        import select as _select
+        proc = subprocess.Popen(
+            ['ros2', 'topic', 'hz', '-w', str(window), topic_name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            bufsize=1,
+        )
+        lines = []
+        deadline = time.time() + timeout
+        try:
+            while time.time() < deadline and len(lines) < 6:
+                r, _, _ = _select.select([proc.stdout], [], [], 0.5)
+                if r:
+                    line = proc.stdout.readline()
+                    if line:
+                        lines.append(line.rstrip())
+                    elif proc.poll() is not None:
+                        break
+        finally:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+        return '\n'.join(lines)
+
+    @staticmethod
     def get_topic_info(topic_name):
-        info = _run_with_retry(f'ros2 topic info {topic_name} | sed "/  Service Servers:/q"')[0]
-        if info:
-            for line in info.split("\n"):
-                if line.startswith("Type:"):
-                    return line.split()[1]
-        return None
+        """Legacy: returns datatype string for a topic. Prefer get_topic_datatype."""
+        return ROS2Tools.get_topic_datatype(topic_name)
 
     @staticmethod
     def get_node_info(node_name):

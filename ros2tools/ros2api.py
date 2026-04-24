@@ -129,6 +129,8 @@ class ROS2Worker:
                                     'publishers': [],
                                     'subscribers': []
                                 }
+                            elif datatype and not topics_data[topic_name].get('datatype'):
+                                topics_data[topic_name]['datatype'] = datatype
                             
                             role = topic_info['role']
                             if role == 'publisher':

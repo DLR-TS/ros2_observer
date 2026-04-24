@@ -293,7 +293,17 @@ class ROS2Tools:
     @staticmethod
     def get_topic_datatype(topic_name):
         """Return the datatype string for a single topic, or None."""
-        out = _run_with_retry(f"ros2 topic type {topic_name}")[0]
+        try:
+            r = subprocess.run(
+                ['ros2', 'topic', 'type', topic_name],
+                capture_output=True, text=True, timeout=15
+            )
+            out = r.stdout.strip()
+            if out:
+                return out
+        except Exception:
+            pass
+        out = _run_with_retry(f'ros2 topic type {topic_name}')[0]
         return out.strip() or None
 
     _PRIMITIVE_DEFAULTS = {
@@ -411,7 +421,6 @@ class ROS2Tools:
             node_info = _run_with_retry(cmd_template.format(name=f'/{node_name}'))[0]
         if not node_info:
             return None
-        print(node_info)
         return node_info
 
     @staticmethod
@@ -423,7 +432,7 @@ class ROS2Tools:
 
     @staticmethod
     def get_interface_info(message_type):
-        return ROS2Tools.trim_comments(_run_with_retry(f"ros2 interface show {message_type}")[0])
+        return ROS2Tools.get_interface_text(message_type)
 
     @staticmethod
     def get_node(node_name):

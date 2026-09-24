@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt
-RUN wget https://eclipse.mirror.wearetriple.com//tracecompass/releases/10.2.0/rcp/trace-compass-10.2.0-20241204-1911-linux.gtk.x86_64.tar.gz
+RUN wget https://download.eclipse.org/tracecompass/releases/10.2.0/rcp/trace-compass-10.2.0-20241204-1911-linux.gtk.x86_64.tar.gz
 RUN tar -xvf *.tar.gz
 
 WORKDIR /opt/trace-compass

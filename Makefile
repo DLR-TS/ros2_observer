@@ -10,13 +10,17 @@ REPO     ?= $(shell git config --get remote.origin.url 2>/dev/null \
               | tr '[:upper:]' '[:lower:]')
 REPO_LC  := $(shell echo "$(REPO)" | tr '[:upper:]' '[:lower:]')
 
+BUILD_TRACING_TOOLS ?= true
+
 DOCKER_IMAGE   := ros2-observer:$(TAG)
 REGISTRY_IMAGE := ghcr.io/$(REPO_LC)/ros2-observer:$(TAG)
 
 .PHONY: build
 build:
+ifneq ($(BUILD_TRACING_TOOLS),false)
 	cd trace_compass && make build ARCH="$(ARCH)" REPO="$(REPO)"
 	cd lttng_scope   && make build ARCH="$(ARCH)" REPO="$(REPO)"
+endif
 	mkdir -p $(BUILD_DIR)
 	docker pull "$(REGISTRY_IMAGE)" 2>/dev/null && \
 	    docker tag "$(REGISTRY_IMAGE)" "$(DOCKER_IMAGE)" || \

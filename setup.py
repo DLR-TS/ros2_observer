@@ -4,6 +4,7 @@ setup(
     name='ros2tools',
     version='0.1.0',
     description="A command line tool for inspecting ROS2 nodes and topics and generating json output",
+    long_description="A command line tool for inspecting ROS2 nodes and topics and generating json output",
     packages=find_packages(include=['ros2tools', 'ros2tools.*']),
     include_package_data=True,
     install_requires=[

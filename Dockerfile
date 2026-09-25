@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim AS ros_observer_builder
+FROM debian:bookworm-slim AS ros_observer_builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 

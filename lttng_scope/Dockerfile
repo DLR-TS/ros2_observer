@@ -1,4 +1,4 @@
-FROM openjdk:17.0.1-jdk-slim
+FROM eclipse-temurin:17-jre-jammy
 
 ARG TARGETARCH
 
